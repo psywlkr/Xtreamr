@@ -104,6 +104,7 @@ class IPTVPlayerApp(QMainWindow):
 
         self.path_to_account_icon           = path.abspath(path.join(path.dirname(__file__), 'Images/account_manager_icon.ico'))
         self.path_to_mediaplayer_icon       = path.abspath(path.join(path.dirname(__file__), 'Images/film_camera_icon.ico'))
+        self.path_to_logo                   = path.abspath(path.join(path.dirname(__file__), 'Images/logo.svg'))
 
         self.setWindowIcon(QIcon(self.path_to_window_icon))
 
@@ -351,6 +352,17 @@ class IPTVPlayerApp(QMainWindow):
         main_layout = QVBoxLayout(main_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
+
+        # Create logo label
+        self.logo_label = QLabel()
+        logo_pixmap = QPixmap(self.path_to_logo)
+        if not logo_pixmap.isNull():
+            # Scale logo to reasonable size while maintaining aspect ratio
+            logo_pixmap = logo_pixmap.scaledToHeight(60, Qt.SmoothTransformation)
+            self.logo_label.setPixmap(logo_pixmap)
+            self.logo_label.setAlignment(Qt.AlignCenter)
+            self.logo_label.setStyleSheet("padding: 10px;")
+            main_layout.addWidget(self.logo_label)
 
         #Add everything to the main_layout
         main_layout.addWidget(self.tab_widget)
@@ -607,12 +619,6 @@ class IPTVPlayerApp(QMainWindow):
         for list_widget in [self.category_list_live, self.category_list_movies, self.category_list_series]:
             list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             list_widget.setIconSize(standard_icon_size)
-            list_widget.setStyleSheet("""
-                QListWidget::item {
-                    padding-top: 5px;
-                    padding-bottom: 5px;
-                }
-            """)
 
     def initEntryListWidgets(self):
         #Create lists for channels
@@ -655,12 +661,6 @@ class IPTVPlayerApp(QMainWindow):
         for list_widget in [self.streaming_list_live, self.streaming_list_movies, self.streaming_list_series]:
             list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             list_widget.setIconSize(standard_icon_size)
-            list_widget.setStyleSheet("""
-                QListWidget::item {
-                    padding-top: 5px;
-                    padding-bottom: 5px;
-                }
-            """)
 
     def initInfoBoxes(self):
         #Create Movies and Series info box
@@ -2490,6 +2490,287 @@ class IPTVPlayerApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+
+    # Apply black and gold theme stylesheet
+    black_gold_stylesheet = """
+        /* Main Application Colors */
+        QMainWindow, QWidget {
+            background-color: #1a1a1a;
+            color: #D4AF37;
+        }
+
+        /* Tab Widget */
+        QTabWidget::pane {
+            border: 2px solid #D4AF37;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+        }
+
+        QTabWidget::tab-bar {
+            alignment: left;
+        }
+
+        QTabBar::tab {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-bottom: none;
+            padding: 8px 16px;
+            margin-right: 2px;
+            border-top-left-radius: 5px;
+            border-top-right-radius: 5px;
+        }
+
+        QTabBar::tab:selected {
+            background-color: #1a1a1a;
+            color: #FFD700;
+            border: 2px solid #D4AF37;
+            border-bottom: none;
+            font-weight: bold;
+        }
+
+        QTabBar::tab:hover {
+            background-color: #3a3a3a;
+            color: #FFD700;
+        }
+
+        /* List Widgets */
+        QListWidget {
+            background-color: #0d0d0d;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            selection-background-color: #3a3a3a;
+            selection-color: #FFD700;
+        }
+
+        QListWidget::item {
+            padding-top: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #2a2a2a;
+        }
+
+        QListWidget::item:hover {
+            background-color: #2a2a2a;
+            color: #FFD700;
+        }
+
+        QListWidget::item:selected {
+            background-color: #3a3a3a;
+            color: #FFD700;
+            border-left: 3px solid #D4AF37;
+        }
+
+        /* Text Edit and Line Edit */
+        QTextEdit, QLineEdit {
+            background-color: #0d0d0d;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            padding: 5px;
+            selection-background-color: #3a3a3a;
+            selection-color: #FFD700;
+        }
+
+        QLineEdit:focus, QTextEdit:focus {
+            border: 2px solid #D4AF37;
+        }
+
+        /* Buttons */
+        QPushButton {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            padding: 6px 12px;
+            font-weight: bold;
+        }
+
+        QPushButton:hover {
+            background-color: #3a3a3a;
+            color: #FFD700;
+            border: 1px solid #D4AF37;
+        }
+
+        QPushButton:pressed {
+            background-color: #D4AF37;
+            color: #1a1a1a;
+        }
+
+        QPushButton:disabled {
+            background-color: #1a1a1a;
+            color: #4a4a4a;
+            border: 1px solid #2a2a2a;
+        }
+
+        /* Progress Bar */
+        QProgressBar {
+            background-color: #0d0d0d;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            text-align: center;
+            color: #D4AF37;
+        }
+
+        QProgressBar::chunk {
+            background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 #D4AF37, stop:0.5 #FFD700, stop:1 #D4AF37);
+            border-radius: 2px;
+        }
+
+        /* Combo Box */
+        QComboBox {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            padding: 5px;
+        }
+
+        QComboBox:hover {
+            border: 1px solid #D4AF37;
+        }
+
+        QComboBox::drop-down {
+            border: none;
+            background-color: #3a3a3a;
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+        }
+
+        QComboBox QAbstractItemView {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            selection-background-color: #3a3a3a;
+            selection-color: #FFD700;
+            border: 1px solid #3a3a3a;
+        }
+
+        /* Spin Box */
+        QSpinBox {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            padding: 5px;
+        }
+
+        QSpinBox:focus {
+            border: 2px solid #D4AF37;
+        }
+
+        /* Check Box */
+        QCheckBox {
+            color: #D4AF37;
+            spacing: 8px;
+        }
+
+        QCheckBox::indicator {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #3a3a3a;
+            border-radius: 3px;
+            background-color: #0d0d0d;
+        }
+
+        QCheckBox::indicator:checked {
+            background-color: #D4AF37;
+            border: 1px solid #FFD700;
+        }
+
+        QCheckBox::indicator:hover {
+            border: 1px solid #D4AF37;
+        }
+
+        /* Labels */
+        QLabel {
+            color: #D4AF37;
+            background-color: transparent;
+        }
+
+        /* Splitter */
+        QSplitter::handle {
+            background-color: #3a3a3a;
+        }
+
+        QSplitter::handle:hover {
+            background-color: #D4AF37;
+        }
+
+        /* Scroll Bar */
+        QScrollBar:vertical {
+            background-color: #1a1a1a;
+            width: 14px;
+            border: 1px solid #2a2a2a;
+            border-radius: 3px;
+        }
+
+        QScrollBar::handle:vertical {
+            background-color: #3a3a3a;
+            border-radius: 3px;
+            min-height: 20px;
+        }
+
+        QScrollBar::handle:vertical:hover {
+            background-color: #D4AF37;
+        }
+
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0px;
+        }
+
+        QScrollBar:horizontal {
+            background-color: #1a1a1a;
+            height: 14px;
+            border: 1px solid #2a2a2a;
+            border-radius: 3px;
+        }
+
+        QScrollBar::handle:horizontal {
+            background-color: #3a3a3a;
+            border-radius: 3px;
+            min-width: 20px;
+        }
+
+        QScrollBar::handle:horizontal:hover {
+            background-color: #D4AF37;
+        }
+
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            width: 0px;
+        }
+
+        /* Menu */
+        QMenu {
+            background-color: #2a2a2a;
+            color: #D4AF37;
+            border: 1px solid #3a3a3a;
+        }
+
+        QMenu::item:selected {
+            background-color: #3a3a3a;
+            color: #FFD700;
+        }
+
+        /* Dialog */
+        QDialog {
+            background-color: #1a1a1a;
+            color: #D4AF37;
+        }
+
+        /* Message Box */
+        QMessageBox {
+            background-color: #1a1a1a;
+            color: #D4AF37;
+        }
+
+        QMessageBox QPushButton {
+            min-width: 80px;
+        }
+    """
+
+    app.setStyleSheet(black_gold_stylesheet)
+
     player = IPTVPlayerApp()
     player.show()
     # player.showMaximized()

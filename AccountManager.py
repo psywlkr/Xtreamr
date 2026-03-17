@@ -188,6 +188,10 @@ class AccountManager(QtWidgets.QDialog):
             m3u_url, live_url_format, movie_url_format, series_url_format = credentials
             config['Credentials'][name] = f"m3u_plus|{m3u_url}|{live_url_format}|{movie_url_format}|{series_url_format}"
 
+        elif method == 'm3u_file':
+            file_path, live_url_format, movie_url_format, series_url_format = credentials
+            config['Credentials'][name] = f"m3u_file|{file_path}|{live_url_format}|{movie_url_format}|{series_url_format}"
+
         # Write the updated configuration back to the file
         with open(self.parent.user_data_file, 'w') as config_file:
             config.write(config_file)
@@ -206,7 +210,7 @@ class AccountManager(QtWidgets.QDialog):
 
                 if data.startswith('manual|'):
                     _, server, username, password, live_url_format, movie_url_format, series_url_format = data.split('|')
-                    
+
                     self.parent.server            = server
                     self.parent.username          = username
                     self.parent.password          = password
@@ -225,6 +229,17 @@ class AccountManager(QtWidgets.QDialog):
 
                     #Get credentials from M3U plus url and check if valid
                     if self.parent.extract_credentials_from_m3u_plus_url(m3u_url):
+                        self.parent.login()
+
+                elif data.startswith('m3u_file|'):
+                    _, file_path, live_url_format, movie_url_format, series_url_format = data.split('|')
+
+                    self.parent.live_url_format   = live_url_format
+                    self.parent.movie_url_format  = movie_url_format
+                    self.parent.series_url_format = series_url_format
+
+                    #Get credentials from M3U file and check if valid
+                    if self.parent.extract_credentials_from_m3u_file(file_path):
                         self.parent.login()
 
                 self.accept()
@@ -271,11 +286,12 @@ class AccountDialog(QtWidgets.QDialog):
 
         self.manual_entry_name    = "Manual/Xtream entry"
         self.m3u_plus_entry_name  = "M3U_plus URL entry"
+        self.m3u_file_entry_name  = "M3U file upload"
         self.default_url_formats  = self.parent.parent.default_url_formats
 
         # Connection method
         self.method_selector = QtWidgets.QComboBox()
-        self.method_selector.addItems([self.manual_entry_name, self.m3u_plus_entry_name])
+        self.method_selector.addItems([self.manual_entry_name, self.m3u_plus_entry_name, self.m3u_file_entry_name])
         layout.addWidget(QtWidgets.QLabel("Select Method:"))
         layout.addWidget(self.method_selector)
 
@@ -332,8 +348,39 @@ class AccountDialog(QtWidgets.QDialog):
         self.name_entry_m3u.setPlaceholderText("Custom account name")
         self.m3u_url_entry.setPlaceholderText("e.g. http://xtreamcode.ex/get.php?username=Mike&password=1234&type=m3u_plus&output=ts")
 
+        # M3U file form
+        self.m3u_file_form = QtWidgets.QWidget()
+        m3u_file_layout = QFormLayout(self.m3u_file_form)
+
+        self.name_entry_m3u_file = QLineEdit()
+        self.m3u_file_path_entry = QLineEdit()
+        self.m3u_file_path_entry.setReadOnly(True)
+
+        self.m3u_file_browse_button = QPushButton("Browse...")
+        self.m3u_file_browse_button.clicked.connect(self.browse_m3u_file)
+
+        # Create horizontal layout for file path and browse button
+        file_path_layout = QHBoxLayout()
+        file_path_layout.addWidget(self.m3u_file_path_entry)
+        file_path_layout.addWidget(self.m3u_file_browse_button)
+
+        self.m3u_file_live_url_format_entry = QLineEdit(self.default_url_formats['live'])
+        self.m3u_file_movie_url_format_entry = QLineEdit(self.default_url_formats['movie'])
+        self.m3u_file_series_url_format_entry = QLineEdit(self.default_url_formats['series'])
+
+        m3u_file_layout.addRow("Name:", self.name_entry_m3u_file)
+        m3u_file_layout.addRow("M3U File:", file_path_layout)
+        m3u_file_layout.addRow("Live URL Format:", self.m3u_file_live_url_format_entry)
+        m3u_file_layout.addRow("Movie URL Format:", self.m3u_file_movie_url_format_entry)
+        m3u_file_layout.addRow("Series URL Format:", self.m3u_file_series_url_format_entry)
+
+        #Set placeholder texts for m3u file credentials
+        self.name_entry_m3u_file.setPlaceholderText("Custom account name")
+        self.m3u_file_path_entry.setPlaceholderText("Select an M3U or M3U8 file")
+
         self.stack.addWidget(self.manual_form)
         self.stack.addWidget(self.m3u_form)
+        self.stack.addWidget(self.m3u_file_form)
 
         self.method_selector.currentIndexChanged.connect(self.stack.setCurrentIndex)
 
@@ -357,13 +404,20 @@ class AccountDialog(QtWidgets.QDialog):
                 self.live_url_format_entry.setText(credentials[4])
                 self.movie_url_format_entry.setText(credentials[5])
                 self.series_url_format_entry.setText(credentials[6])
-            else:
+            elif method == 'm3u_plus':
                 self.method_selector.setCurrentText(self.m3u_plus_entry_name)
                 self.name_entry_m3u.setText(credentials[0])
                 self.m3u_url_entry.setText(credentials[1])
                 self.m3u_live_url_format_entry.setText(credentials[2])
                 self.m3u_movie_url_format_entry.setText(credentials[3])
                 self.m3u_series_url_format_entry.setText(credentials[4])
+            elif method == 'm3u_file':
+                self.method_selector.setCurrentText(self.m3u_file_entry_name)
+                self.name_entry_m3u_file.setText(credentials[0])
+                self.m3u_file_path_entry.setText(credentials[1])
+                self.m3u_file_live_url_format_entry.setText(credentials[2])
+                self.m3u_file_movie_url_format_entry.setText(credentials[3])
+                self.m3u_file_series_url_format_entry.setText(credentials[4])
 
         font_metrics = self.fontMetrics()
         max_width = max(
@@ -376,10 +430,27 @@ class AccountDialog(QtWidgets.QDialog):
             font_metrics.width(self.m3u_url_entry.text()),
             font_metrics.width(self.m3u_live_url_format_entry.text()),
             font_metrics.width(self.m3u_movie_url_format_entry.text()),
-            font_metrics.width(self.m3u_series_url_format_entry.text())
+            font_metrics.width(self.m3u_series_url_format_entry.text()),
+            font_metrics.width(self.name_entry_m3u_file.text()),
+            font_metrics.width(self.m3u_file_path_entry.text()),
+            font_metrics.width(self.m3u_file_live_url_format_entry.text()),
+            font_metrics.width(self.m3u_file_movie_url_format_entry.text()),
+            font_metrics.width(self.m3u_file_series_url_format_entry.text())
         )
 
         self.setMinimumWidth(max_width + 150)
+
+    def browse_m3u_file(self):
+        """Open file dialog to select M3U file"""
+        file_dialog = QFileDialog()
+        file_dialog.setFileMode(QFileDialog.ExistingFile)
+        file_dialog.setNameFilter("M3U Files (*.m3u *.m3u8);;All Files (*)")
+        file_dialog.setWindowTitle("Select M3U File")
+
+        if file_dialog.exec_():
+            file_paths = file_dialog.selectedFiles()
+            if len(file_paths) > 0:
+                self.m3u_file_path_entry.setText(file_paths[0])
     
     def validate_and_accept(self):
         method = self.method_selector.currentText()
@@ -395,12 +466,26 @@ class AccountDialog(QtWidgets.QDialog):
                 return
 
             self.accept()
-        else:
+        elif method == self.m3u_plus_entry_name:
             name    = self.name_entry_m3u.text().strip()
             m3u_url = self.m3u_url_entry.text().strip()
 
             if not name or not m3u_url:
                 QtWidgets.QMessageBox.warning(self, "Input Error", "Please fill all fields for m3u_plus URL Entry.")
+                return
+
+            self.accept()
+        else:  # M3U file upload
+            name      = self.name_entry_m3u_file.text().strip()
+            file_path = self.m3u_file_path_entry.text().strip()
+
+            if not name or not file_path:
+                QtWidgets.QMessageBox.warning(self, "Input Error", "Please fill all fields for M3U File Entry.")
+                return
+
+            # Check if file exists
+            if not os.path.exists(file_path):
+                QtWidgets.QMessageBox.warning(self, "File Error", "The selected M3U file does not exist.")
                 return
 
             self.accept()
@@ -418,7 +503,7 @@ class AccountDialog(QtWidgets.QDialog):
             series_url_format = self.series_url_format_entry.text().strip()
 
             return ('manual', name, server, username, password, live_url_format, movie_url_format, series_url_format)
-        else:
+        elif method == self.m3u_plus_entry_name:
             name              = self.name_entry_m3u.text().strip()
             m3u_url           = self.m3u_url_entry.text().strip()
             live_url_format   = self.m3u_live_url_format_entry.text().strip()
@@ -426,3 +511,11 @@ class AccountDialog(QtWidgets.QDialog):
             series_url_format = self.m3u_series_url_format_entry.text().strip()
 
             return ('m3u_plus', name, m3u_url, live_url_format, movie_url_format, series_url_format)
+        else:  # M3U file upload
+            name              = self.name_entry_m3u_file.text().strip()
+            file_path         = self.m3u_file_path_entry.text().strip()
+            live_url_format   = self.m3u_file_live_url_format_entry.text().strip()
+            movie_url_format  = self.m3u_file_movie_url_format_entry.text().strip()
+            series_url_format = self.m3u_file_series_url_format_entry.text().strip()
+
+            return ('m3u_file', name, file_path, live_url_format, movie_url_format, series_url_format)

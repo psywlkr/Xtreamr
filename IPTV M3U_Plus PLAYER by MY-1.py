@@ -1165,6 +1165,17 @@ class IPTVPlayerApp(QMainWindow):
                     if self.extract_credentials_from_m3u_plus_url(m3u_url):
                         self.login()
 
+                elif data.startswith('m3u_file|'):
+                    file_path, live_url_format, movie_url_format, series_url_format = parts[1:5]
+
+                    self.live_url_format   = live_url_format
+                    self.movie_url_format  = movie_url_format
+                    self.series_url_format = series_url_format
+
+                    #Get credentials from M3U file and check if valid
+                    if self.extract_credentials_from_m3u_file(file_path):
+                        self.login()
+
     def toggleKeepOnTop(self, state):
         if state == Qt.Checked:
             self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
@@ -1234,6 +1245,61 @@ class IPTVPlayerApp(QMainWindow):
             print(f"Error extracting credentials: {e}")
             self.animate_progress(0, 100, "Error extracting credentials")
 
+            return False
+
+    def extract_credentials_from_m3u_file(self, file_path):
+        """Extract credentials from M3U file by parsing the URL in the first stream entry"""
+        try:
+            if not os.path.exists(file_path):
+                self.animate_progress(0, 100, "M3U file not found")
+                dlg = QMessageBox(self)
+                dlg.setWindowTitle("Error!")
+                dlg.setText("M3U file not found!")
+                dlg.exec()
+                return False
+
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+
+            # Try to find URLs in the M3U file that contain credentials
+            # Pattern 1: http://server:port/username/password/...
+            pattern1 = r'(http[s]?://[^/]+)/(?:live/)?([^/]+)/([^/]+)/(\d+)'
+            # Pattern 2: http://server/get.php?username=...&password=...
+            pattern2 = r'(http[s]?://[^/]+)/get\.php\?username=([^&]*)&password=([^&]*)'
+
+            # Try pattern 1 first (most common for M3U files)
+            match = re.search(pattern1, content)
+            if match:
+                self.server   = match.group(1)
+                self.username = match.group(2)
+                self.password = match.group(3)
+                print(f"Extracted credentials from M3U file: {self.server}, {self.username}")
+                return True
+
+            # Try pattern 2 (M3U plus style URLs)
+            match = re.search(pattern2, content)
+            if match:
+                self.server   = match.group(1)
+                self.username = match.group(2)
+                self.password = match.group(3)
+                print(f"Extracted credentials from M3U file (m3u_plus style): {self.server}, {self.username}")
+                return True
+
+            # If no credentials found, show error
+            self.animate_progress(0, 100, "No credentials found in M3U file")
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("Error!")
+            dlg.setText("Could not extract server credentials from M3U file!\nPlease ensure the file contains valid IPTV stream URLs.")
+            dlg.exec()
+            return False
+
+        except Exception as e:
+            print(f"Error reading M3U file: {e}")
+            self.animate_progress(0, 100, "Error reading M3U file")
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("Error!")
+            dlg.setText(f"Error reading M3U file:\n{str(e)}")
+            dlg.exec()
             return False
 
     def set_progress_text(self, text):

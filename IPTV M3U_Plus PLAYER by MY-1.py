@@ -2759,7 +2759,8 @@ class IPTVPlayerApp(QMainWindow):
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
 
                     #Build command with optional proxy argument
-                    player_cmd = f"{self.external_player_command} {proxy_arg} \"{url}\"".strip()
+                    cmd_parts = [self.external_player_command, proxy_arg, f"\"{url}\""]
+                    player_cmd = " ".join(part for part in cmd_parts if part)
 
                     subprocess.Popen(player_cmd, shell=True)
                 
@@ -2774,14 +2775,16 @@ class IPTVPlayerApp(QMainWindow):
                         user_agent_argument = f"--user-agent=\"{self.current_user_agent}\""
                         if self.proxy_url:
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
-                        player_cmd = f"{self.external_player_command} {user_agent_argument} {proxy_arg} \"{url}\"".strip()
+                        cmd_parts = [self.external_player_command, user_agent_argument, proxy_arg, f"\"{url}\""]
+                        player_cmd = " ".join(part for part in cmd_parts if part)
                 
                     #Support VLC with the proper command line
                     elif "vlc.exe" in self.external_player_command:
                         user_agent_argument = f"--http-user-agent=\"{self.current_user_agent}\""
                         if self.proxy_url:
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
-                        player_cmd = f"{self.external_player_command} {user_agent_argument} {proxy_arg} \"{url}\"".strip()
+                        cmd_parts = [self.external_player_command, user_agent_argument, proxy_arg, f"\"{url}\""]
+                        player_cmd = " ".join(part for part in cmd_parts if part)
 
                     #Default support, run without user agent argument (e.g. MPC-HC is without user agent argument)
                     else:

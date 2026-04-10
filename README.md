@@ -33,11 +33,12 @@ Download the latest version here: [Latest releases](https://github.com/Youri666/
 - **Dark theme:** Toggle dark theme from the settings tab.
 - **TMDB integration:** Enhanced movie and series info via the TMDB API (requires API key).
 - **Cache optimization:** Optionally load from cache at startup for faster loading times.
+- **Fallback Proxy:** Configure a fallback proxy (HTTP, HTTPS, SOCKS5) in Settings. Requests are tried directly first and automatically retried through the proxy on failure.
 - **Recommended Player:** For optimal performance, use VLC media player. Download it at: https://www.videolan.org/vlc/
 - **Recommended Player:** For optimal performance, use SMPlayer. Download it at: https://www.smplayer.info
 
 # Future plans
-- **M3U file support**: Select M3U file or URL to M3U file to load data from.
+- **Multi-language support**: Add multi-language support for the UI.
 
 <details>
 <summary><h1><strong>FAQ</strong></h1></summary>
@@ -112,7 +113,7 @@ If none of these work, more attention is needed and you should create an [Issues
 python -m pip install --upgrade pip
 python -m pip install --upgrade setuptools
 python -m pip install --upgrade pyinstaller
-python -m pip install --upgrade requests lxml python-dateutil PyQt5
+python -m pip install --upgrade requests lxml python-dateutil PyQt5 PySocks
 ```
 
 ### 3. Verify that PyInstaller is installed correctly
@@ -140,7 +141,7 @@ If you are building Python by yourself, rebuild with `--enable-shared` (or, `--e
 python3 -m pip install --upgrade pip
 python3 -m pip install --upgrade setuptools
 python3 -m pip install --upgrade pyinstaller
-python3 -m pip install --upgrade requests lxml python-dateutil PyQt5
+python3 -m pip install --upgrade requests lxml python-dateutil PyQt5 PySocks
 ```
 _Note:_ If you are not logged in as root (which is recommended), you need to ensure that `pyInstaller` is included in your PATH environment variable:
 ```bash

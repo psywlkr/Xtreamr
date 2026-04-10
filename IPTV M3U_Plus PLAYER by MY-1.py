@@ -31,7 +31,7 @@ from CustomPyQtWidgets import LiveInfoBox, MovieInfoBox, SeriesInfoBox
 import Threadpools
 from Threadpools import FetchDataWorker, SearchWorker, OnlineWorker, EPGWorker, MovieInfoFetcher, SeriesInfoFetcher, ImageFetcher
 
-CURRENT_VERSION = "V1.04.00"
+CURRENT_VERSION = "V1.05.00"
 
 is_windows  = sys.platform.startswith('win')
 is_mac      = sys.platform.startswith('darwin')
@@ -977,7 +977,7 @@ class IPTVPlayerApp(QMainWindow):
         #Fallback proxy URL input
         self.proxy_url_entry = QLineEdit()
         self.proxy_url_entry.setPlaceholderText("e.g. http://proxy:8080 or socks5://proxy:1080")
-        self.proxy_url_entry.setToolTip("Set a fallback proxy for all HTTP requests and stream playback.\nLeave empty to disable. Press Enter to save.\nSupports http, https, socks5 protocols.")
+        self.proxy_url_entry.setToolTip("Set a fallback proxy for all HTTP requests and stream playback.\nLeave empty to disable. Press Enter to save.\nSupports http, https, socks5, socks4 protocols.\nNote: SOCKS proxies require the PySocks package (pip install PySocks).")
         self.proxy_url_entry.returnPressed.connect(self.saveProxyUrl)
 
         #Add widgets to settings tab layout
@@ -1420,7 +1420,21 @@ class IPTVPlayerApp(QMainWindow):
 
     def saveProxyUrl(self):
         """Save the fallback proxy URL to userdata and apply it immediately."""
-        self.proxy_url = self.proxy_url_entry.text().strip()
+        url = self.proxy_url_entry.text().strip()
+
+        #Validate proxy URL format (allow empty to disable)
+        if url:
+            valid_schemes = ('http://', 'https://', 'socks5://', 'socks4://')
+            if not url.lower().startswith(valid_schemes):
+                QMessageBox.warning(self, "Invalid Proxy URL",
+                    "The proxy URL must start with one of:\n"
+                    "  http://\n  https://\n  socks5://\n  socks4://\n\n"
+                    "Example: http://proxy:8080 or socks5://proxy:1080\n\n"
+                    "Note: SOCKS5 requires the PySocks package\n"
+                    "(pip install PySocks).")
+                return
+
+        self.proxy_url = url
 
         config = configparser.ConfigParser()
         config.read(self.user_data_file)
@@ -2757,6 +2771,8 @@ class IPTVPlayerApp(QMainWindow):
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
                         elif "vlc" in player_lower:
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
+                        elif "smplayer" in player_lower:
+                            proxy_arg = f"-proxy \"{self.proxy_url}\""
 
                     #Build command with optional proxy argument
                     cmd_parts = [self.external_player_command, proxy_arg, f"\"{url}\""]
@@ -2768,7 +2784,10 @@ class IPTVPlayerApp(QMainWindow):
                     #Support PotPlayer with the proper command line
                     if "PotPlayerMini64.exe" in self.external_player_command:
                         user_agent_argument = f"/user_agent=\"{self.current_user_agent}\""
-                        player_cmd = f"{self.external_player_command} \"{url}\" {user_agent_argument}"
+                        if self.proxy_url:
+                            proxy_arg = f"/proxy=\"{self.proxy_url}\""
+                        cmd_parts = [self.external_player_command, f"\"{url}\"", user_agent_argument, proxy_arg]
+                        player_cmd = " ".join(part for part in cmd_parts if part)
                     
                     #Support MPV with the proper command line
                     elif ("mpv.exe" in self.external_player_command) or ("mpv.com" in self.external_player_command):
@@ -2784,6 +2803,13 @@ class IPTVPlayerApp(QMainWindow):
                         if self.proxy_url:
                             proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
                         cmd_parts = [self.external_player_command, user_agent_argument, proxy_arg, f"\"{url}\""]
+                        player_cmd = " ".join(part for part in cmd_parts if part)
+
+                    #Support SMPlayer with the proper command line
+                    elif "smplayer.exe" in self.external_player_command.lower():
+                        if self.proxy_url:
+                            proxy_arg = f"-proxy \"{self.proxy_url}\""
+                        cmd_parts = [self.external_player_command, proxy_arg, f"\"{url}\""]
                         player_cmd = " ".join(part for part in cmd_parts if part)
 
                     #Default support, run without user agent argument (e.g. MPC-HC is without user agent argument)

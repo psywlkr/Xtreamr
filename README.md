@@ -29,15 +29,15 @@ Download the latest version here: [Latest releases](https://github.com/Youri666/
 - **Adjustable column widths**: Adjust the column widths in each tab to your liking by dragging the edges.
 - **Error Handling:** Graceful handling of loading issues.
 - **External Player Support:** Play channels/movies/series using VLC or SMPlayer.
+- **Home tab:** Home tab with recently watched TV, movies and series for quick access.
+- **Dark theme:** Toggle dark theme from the settings tab.
+- **TMDB integration:** Enhanced movie and series info via the TMDB API (requires API key).
+- **Cache optimization:** Optionally load from cache at startup for faster loading times.
 - **Recommended Player:** For optimal performance, use VLC media player. Download it at: https://www.videolan.org/vlc/
 - **Recommended Player:** For optimal performance, use SMPlayer. Download it at: https://www.smplayer.info
 
 # Future plans
 - **M3U file support**: Select M3U file or URL to M3U file to load data from.
-- **Home tab:** Home tab with previously watched and popular movies and series.
-- **TMDB support:** Much more information about movies and series with the TMDB API.
-- **Improve startup loading time:** Improve loading time at startup by optionally loading the IPTV data from cache.
-- **Dark theme**
 
 <details>
 <summary><h1><strong>FAQ</strong></h1></summary>

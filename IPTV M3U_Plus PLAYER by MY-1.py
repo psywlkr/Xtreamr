@@ -929,6 +929,10 @@ class IPTVPlayerApp(QMainWindow):
         self.reload_data_btn.setToolTip("Click this to manually reload the IPTV data from the server.\nThis refreshes the cached data.")
         self.reload_data_btn.clicked.connect(self.reload_data_from_server)
 
+        self.dark_theme_checkbox = QCheckBox("Dark theme")
+        self.dark_theme_checkbox.setToolTip("Enable dark theme for the application")
+        self.dark_theme_checkbox.stateChanged.connect(self.toggleDarkTheme)
+
         self.select_user_agent_box = QComboBox()
         self.select_user_agent_box.addItems(self.user_agents)
         self.select_user_agent_box.currentTextChanged.connect(lambda e: self.userAgentSelected(e, self.select_user_agent_box))
@@ -962,6 +966,7 @@ class IPTVPlayerApp(QMainWindow):
         self.settings_layout.addWidget(self.address_book_button,                            0, 0)
         self.settings_layout.addWidget(self.choose_player_button,                           0, 1)
         self.settings_layout.addWidget(self.vods_enabled_checkbox,                          1, 0)
+        self.settings_layout.addWidget(self.dark_theme_checkbox,                            1, 1)
         self.settings_layout.addWidget(self.keep_on_top_checkbox,                           2, 0)
         self.settings_layout.addWidget(self.cache_on_startup_checkbox,                      2, 1)
         self.settings_layout.addWidget(QLabel("Default sorting order: "),                   3, 0)
@@ -1223,6 +1228,9 @@ class IPTVPlayerApp(QMainWindow):
         #Load cache on startup setting
         self.loadDefaultCacheSetting()
 
+        #Load theme setting
+        self.loadDefaultTheme()
+
         #Load default auto update checker
         self.loadDefaultAutoUpdate()
 
@@ -1246,6 +1254,104 @@ class IPTVPlayerApp(QMainWindow):
             self.cache_on_startup_checkbox.setCheckState(Qt.Checked)
         else:
             self.cache_on_startup_checkbox.setCheckState(Qt.Unchecked)
+
+    def loadDefaultTheme(self):
+        """Load the dark theme setting from userdata."""
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        dark_theme = False
+
+        if 'Theme' in config:
+            dark_theme = (config['Theme'].get('dark_theme', 'False') == 'True')
+
+        if dark_theme:
+            self.dark_theme_checkbox.setCheckState(Qt.Checked)
+            self.applyDarkTheme()
+        else:
+            self.dark_theme_checkbox.setCheckState(Qt.Unchecked)
+            self.applyLightTheme()
+
+    def toggleDarkTheme(self, state):
+        checked = bool(state)
+
+        if checked:
+            self.applyDarkTheme()
+        else:
+            self.applyLightTheme()
+
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        config['Theme'] = {'dark_theme': str(checked)}
+
+        with open(self.user_data_file, 'w') as config_file:
+            config.write(config_file)
+
+    def applyDarkTheme(self):
+        """Apply a dark theme using QPalette."""
+        from PyQt5.QtGui import QPalette
+        palette = QPalette()
+
+        dark_color      = QColor(45, 45, 45)
+        darker_color    = QColor(30, 30, 30)
+        lighter_color   = QColor(60, 60, 60)
+        text_color      = QColor(220, 220, 220)
+        highlight_color = QColor(42, 130, 218)
+        disabled_color  = QColor(127, 127, 127)
+
+        palette.setColor(QPalette.Window, dark_color)
+        palette.setColor(QPalette.WindowText, text_color)
+        palette.setColor(QPalette.Base, darker_color)
+        palette.setColor(QPalette.AlternateBase, dark_color)
+        palette.setColor(QPalette.ToolTipBase, dark_color)
+        palette.setColor(QPalette.ToolTipText, text_color)
+        palette.setColor(QPalette.Text, text_color)
+        palette.setColor(QPalette.Button, dark_color)
+        palette.setColor(QPalette.ButtonText, text_color)
+        palette.setColor(QPalette.BrightText, Qt.red)
+        palette.setColor(QPalette.Link, highlight_color)
+        palette.setColor(QPalette.Highlight, highlight_color)
+        palette.setColor(QPalette.HighlightedText, Qt.black)
+        palette.setColor(QPalette.Disabled, QPalette.Text, disabled_color)
+        palette.setColor(QPalette.Disabled, QPalette.ButtonText, disabled_color)
+
+        QApplication.instance().setPalette(palette)
+
+        #Apply additional stylesheet for dark theme elements
+        QApplication.instance().setStyleSheet("""
+            QToolTip {
+                color: #dcdcdc;
+                background-color: #2d2d2d;
+                border: 1px solid #3c3c3c;
+            }
+            QTabWidget::pane {
+                border: 1px solid #3c3c3c;
+            }
+            QTabBar::tab {
+                background: #2d2d2d;
+                color: #dcdcdc;
+                padding: 8px 12px;
+                border: 1px solid #3c3c3c;
+            }
+            QTabBar::tab:selected {
+                background: #3c3c3c;
+                color: #ffffff;
+            }
+            QProgressBar {
+                border: 1px solid #3c3c3c;
+                text-align: center;
+                color: #dcdcdc;
+            }
+            QProgressBar::chunk {
+                background-color: #2a82da;
+            }
+        """)
+
+    def applyLightTheme(self):
+        """Reset to the default light theme."""
+        QApplication.instance().setPalette(QApplication.style().standardPalette())
+        QApplication.instance().setStyleSheet("")
 
     def loadStartupCredentials(self):
         # Load playlist on startup if enabled

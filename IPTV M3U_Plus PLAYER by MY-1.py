@@ -63,9 +63,10 @@ class IPTVPlayerApp(QMainWindow):
         ]
         self.current_user_agent = ""
 
-        self.user_data_file = "userdata.ini"
-        self.favorites_file = "favorites.json"
-        self.cache_file     = "all_cached_data.json"
+        self.user_data_file     = "userdata.ini"
+        self.favorites_file     = "favorites.json"
+        self.cache_file         = "all_cached_data.json"
+        self.watch_history_file = "watch_history.json"
         # Default values for URL formats
         self.default_url_formats = {
             'live': "{server}/live/{username}/{password}/{stream_id}.{container_extension}",
@@ -124,6 +125,7 @@ class IPTVPlayerApp(QMainWindow):
         self.category_search_history_list       = []
         self.category_search_history_list_idx   = [0]
         self.max_search_history_size            = 30
+        self.max_watch_history_size             = 20
 
         #Previous clicked item for preventing loading the same item multiple times
         self.prev_clicked_category_item = {
@@ -190,7 +192,7 @@ class IPTVPlayerApp(QMainWindow):
 
         self.initSearchBars()
 
-        # self.initHomeTab()
+        self.initHomeTab()
 
         self.initSettingsTab()
 
@@ -432,7 +434,7 @@ class IPTVPlayerApp(QMainWindow):
         self.settings_layout        = QGridLayout(settings_tab)
 
         #Add created tabs to tab widget with their names
-        # self.tab_widget.addTab(home_tab,        self.home_icon,         "Home")
+        self.tab_widget.addTab(home_tab,        self.home_icon,         "Home")
         self.tab_widget.addTab(live_tab,        self.live_icon,         "LIVE")
         self.tab_widget.addTab(movies_tab,      self.movies_icon,       "Movies")
         self.tab_widget.addTab(series_tab,      self.series_icon,       "Series")
@@ -679,10 +681,25 @@ class IPTVPlayerApp(QMainWindow):
         self.movie_history_list.setFlow(QListView.LeftToRight)
         self.series_history_list.setFlow(QListView.LeftToRight)
 
+        #Set wrapping so items don't go off screen
+        self.live_history_list.setWrapping(False)
+        self.movie_history_list.setWrapping(False)
+        self.series_history_list.setWrapping(False)
+
+        #Set fixed height for horizontal lists
+        self.live_history_list.setFixedHeight(60)
+        self.movie_history_list.setFixedHeight(60)
+        self.series_history_list.setFixedHeight(60)
+
+        #Connect double-click to play
+        self.live_history_list.itemDoubleClicked.connect(self.home_item_double_clicked)
+        self.movie_history_list.itemDoubleClicked.connect(self.home_item_double_clicked)
+        self.series_history_list.itemDoubleClicked.connect(self.home_item_double_clicked)
+
         #Create labels for lists
-        self.live_history_lbl   = QLabel("Previously watched TV")
-        self.movie_history_lbl  = QLabel("Previously watched movies")
-        self.series_history_lbl = QLabel("Previously watched series")
+        self.live_history_lbl   = QLabel("Recently watched TV")
+        self.movie_history_lbl  = QLabel("Recently watched movies")
+        self.series_history_lbl = QLabel("Recently watched series")
 
         #Set fonts
         self.live_history_lbl.setFont(QFont('Arial', 14, QFont.Bold))
@@ -696,6 +713,91 @@ class IPTVPlayerApp(QMainWindow):
         self.home_tab_layout.addWidget(self.movie_history_list)
         self.home_tab_layout.addWidget(self.series_history_lbl)
         self.home_tab_layout.addWidget(self.series_history_list)
+
+        #Add stretch to push lists to top
+        self.home_tab_layout.addStretch(1)
+
+        #Load watch history from file
+        self.loadWatchHistory()
+
+    def loadWatchHistory(self):
+        """Load watch history from JSON file and populate Home tab lists."""
+        try:
+            if path.isfile(self.watch_history_file):
+                with open(self.watch_history_file, 'r') as f:
+                    history_data = json.load(f)
+            else:
+                history_data = {}
+
+            #Populate each history list
+            for stream_type, list_widget in [('LIVE', self.live_history_list),
+                                              ('Movies', self.movie_history_list),
+                                              ('Series', self.series_history_list)]:
+                list_widget.clear()
+                items = history_data.get(stream_type, [])
+                for entry in items:
+                    item = QListWidgetItem(entry.get('name', 'Unknown'))
+                    item.setData(Qt.UserRole, entry)
+                    list_widget.addItem(item)
+
+        except Exception as e:
+            print(f"Failed loading watch history: {e}")
+
+    def addToWatchHistory(self, stream_type, entry_data):
+        """Add an item to the watch history and save to file."""
+        try:
+            #Load existing history
+            if path.isfile(self.watch_history_file):
+                with open(self.watch_history_file, 'r') as f:
+                    history_data = json.load(f)
+            else:
+                history_data = {}
+
+            #Get or create the list for this stream type
+            items = history_data.get(stream_type, [])
+
+            #Create a minimal entry for history (name, url, stream_type)
+            history_entry = {
+                'name': entry_data.get('name', entry_data.get('title', 'Unknown')),
+                'url': entry_data.get('url', ''),
+                'stream_type': entry_data.get('stream_type', stream_type.lower()),
+            }
+
+            #Remove duplicate if already in history
+            items = [item for item in items if item.get('url') != history_entry['url']]
+
+            #Add to the front of the list
+            items.insert(0, history_entry)
+
+            #Limit history size
+            items = items[:self.max_watch_history_size]
+
+            #Save back
+            history_data[stream_type] = items
+            with open(self.watch_history_file, 'w') as f:
+                json.dump(history_data, f, indent=4)
+
+            #Refresh the Home tab lists
+            self.loadWatchHistory()
+
+        except Exception as e:
+            print(f"Failed saving watch history: {e}")
+
+    def home_item_double_clicked(self, clicked_item):
+        """Handle double-click on a Home tab history item to replay it."""
+        try:
+            if not clicked_item:
+                return
+
+            data = clicked_item.data(Qt.UserRole)
+            if not data:
+                return
+
+            url = data.get('url', '')
+            if url:
+                self.play_item(url)
+        except Exception as e:
+            print(f"Failed playing home item: {e}")
 
     def loadDefaultSortingOrder(self):
         sorting_order = ""
@@ -919,9 +1021,9 @@ class IPTVPlayerApp(QMainWindow):
         else:
             self.vods_enabled = True
 
-        #Update tabs to match config
-        self.tab_widget.setTabEnabled(1, self.vods_enabled)
+        #Update tabs to match config (Home=0, LIVE=1, Movies=2, Series=3)
         self.tab_widget.setTabEnabled(2, self.vods_enabled)
+        self.tab_widget.setTabEnabled(3, self.vods_enabled)
 
         #Update checkbox to match config
         if self.vods_enabled:
@@ -1176,8 +1278,8 @@ class IPTVPlayerApp(QMainWindow):
         checked = bool(state)
 
         self.vods_enabled = checked
-        self.tab_widget.setTabEnabled(1, checked)
         self.tab_widget.setTabEnabled(2, checked)
+        self.tab_widget.setTabEnabled(3, checked)
 
         config = configparser.ConfigParser()
         config.read(self.user_data_file)
@@ -2088,6 +2190,10 @@ class IPTVPlayerApp(QMainWindow):
                     if 'live' in stream_type or 'movie' in stream_type:
                         self.play_item(clicked_item_data['url'])
 
+                        #Add to watch history
+                        history_stream_type = 'LIVE' if 'live' in stream_type else 'Movies'
+                        self.addToWatchHistory(history_stream_type, clicked_item_data)
+
                     elif 'series' in stream_type:
                         self.series_navigation_level = 1
                         self.show_seasons(clicked_item_data)
@@ -2109,6 +2215,9 @@ class IPTVPlayerApp(QMainWindow):
                     else:
                         #Play episode
                         self.play_item(clicked_item_data['url'])
+
+                        #Add to watch history
+                        self.addToWatchHistory('Series', clicked_item_data)
 
         except Exception as e:
             print(f"failed item double click: {e}")

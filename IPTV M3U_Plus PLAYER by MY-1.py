@@ -920,13 +920,14 @@ class IPTVPlayerApp(QMainWindow):
         self.default_sorting_order_box.addItems(["A-Z", "Z-A", "Sorting disabled"])
         self.default_sorting_order_box.currentTextChanged.connect(lambda e: self.setDefaultSortingOrder(e, self.default_sorting_order_box))
 
-        # self.cache_on_startup_checkbox = QCheckBox("Startup with cached data")
-        # self.cache_on_startup_checkbox.setToolTip("Loads the cached IPTV data on startup to reduce startup time.\nNote that the cached data only changes if you manually reload it once in a while.")
-        # self.cache_on_startup_checkbox.stateChanged.connect(self.toggle_cache_on_startup)
+        self.cache_on_startup_checkbox = QCheckBox("Startup with cached data")
+        self.cache_on_startup_checkbox.setToolTip("Loads the cached IPTV data on startup to reduce startup time.\nNote that the cached data only changes if you manually reload it once in a while.")
+        self.cache_on_startup_checkbox.stateChanged.connect(self.toggle_cache_on_startup)
 
-        # self.reload_data_btn = QPushButton("Reload data")
-        # self.reload_data_btn.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload))
-        # self.reload_data_btn.setToolTip("Click this to manually reload the IPTV data.\nNote that this only has effect if \'Startup with cached data\' is checked.")
+        self.reload_data_btn = QPushButton("Reload data")
+        self.reload_data_btn.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload))
+        self.reload_data_btn.setToolTip("Click this to manually reload the IPTV data from the server.\nThis refreshes the cached data.")
+        self.reload_data_btn.clicked.connect(self.reload_data_from_server)
 
         self.select_user_agent_box = QComboBox()
         self.select_user_agent_box.addItems(self.user_agents)
@@ -962,23 +963,22 @@ class IPTVPlayerApp(QMainWindow):
         self.settings_layout.addWidget(self.choose_player_button,                           0, 1)
         self.settings_layout.addWidget(self.vods_enabled_checkbox,                          1, 0)
         self.settings_layout.addWidget(self.keep_on_top_checkbox,                           2, 0)
+        self.settings_layout.addWidget(self.cache_on_startup_checkbox,                      2, 1)
         self.settings_layout.addWidget(QLabel("Default sorting order: "),                   3, 0)
         self.settings_layout.addWidget(self.default_sorting_order_box,                      3, 1)
         self.settings_layout.addWidget(self.update_checker,                                 4, 0)
         self.settings_layout.addWidget(self.auto_update_checkbox,                           4, 1)
+        self.settings_layout.addWidget(self.reload_data_btn,                                5, 0)
 
         #Advanced options
-        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         5, 0)
-        self.settings_layout.addWidget(self.select_user_agent_box,                              5, 1)
-        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    6, 0)
-        self.settings_layout.addWidget(self.set_connection_timeout,                             6, 1)
-        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          7, 0)
-        self.settings_layout.addWidget(self.set_read_timeout,                                   7, 1)
-        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   8, 0)
-        self.settings_layout.addWidget(self.set_live_status_timeout,                            8, 1)
-
-        # self.settings_layout.addWidget(self.cache_on_startup_checkbox,  2, 0)
-        # self.settings_layout.addWidget(self.reload_data_btn,            3, 0)
+        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         6, 0)
+        self.settings_layout.addWidget(self.select_user_agent_box,                              6, 1)
+        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    7, 0)
+        self.settings_layout.addWidget(self.set_connection_timeout,                             7, 1)
+        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          8, 0)
+        self.settings_layout.addWidget(self.set_read_timeout,                                   8, 1)
+        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   9, 0)
+        self.settings_layout.addWidget(self.set_live_status_timeout,                            9, 1)
 
     def userAgentSelected(self, e, combobox):
         #Get selected text
@@ -1220,6 +1220,9 @@ class IPTVPlayerApp(QMainWindow):
         #Load if VODs enabled
         self.loadDefaultVODs()
 
+        #Load cache on startup setting
+        self.loadDefaultCacheSetting()
+
         #Load default auto update checker
         self.loadDefaultAutoUpdate()
 
@@ -1228,6 +1231,21 @@ class IPTVPlayerApp(QMainWindow):
 
         #Load default timeouts
         self.loadDefaultTimeout()
+
+    def loadDefaultCacheSetting(self):
+        """Load the cache on startup setting from userdata."""
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        self.cache_on_startup = False
+
+        if 'Cache' in config:
+            self.cache_on_startup = (config['Cache'].get('startup_with_cache', 'False') == 'True')
+
+        if self.cache_on_startup:
+            self.cache_on_startup_checkbox.setCheckState(Qt.Checked)
+        else:
+            self.cache_on_startup_checkbox.setCheckState(Qt.Unchecked)
 
     def loadStartupCredentials(self):
         # Load playlist on startup if enabled
@@ -1254,8 +1272,6 @@ class IPTVPlayerApp(QMainWindow):
                     self.movie_url_format  = movie_url_format
                     self.series_url_format = series_url_format
 
-                    self.login()
-
                 elif data.startswith('m3u_plus|'):
                     m3u_url, live_url_format, movie_url_format, series_url_format = parts[1:5]
 
@@ -1264,8 +1280,102 @@ class IPTVPlayerApp(QMainWindow):
                     self.series_url_format = series_url_format
 
                     #Get credentials from M3U plus url and check if valid
-                    if self.extract_credentials_from_m3u_plus_url(m3u_url):
-                        self.login()
+                    if not self.extract_credentials_from_m3u_plus_url(m3u_url):
+                        return
+
+                #If cache on startup is enabled, try to load from cache first
+                if self.cache_on_startup and path.isfile(self.cache_file):
+                    self.loadFromCache()
+                else:
+                    self.login()
+
+    def loadFromCache(self):
+        """Load IPTV data from the local cache file instead of fetching from server."""
+        try:
+            self.set_progress_bar(0, "Loading from cache...")
+
+            with open(self.cache_file, 'r') as f:
+                cached_data = json.load(f)
+
+            #Build iptv_info as empty since cache doesn't store it
+            iptv_info = {}
+
+            #Build categories and entries from cache
+            categories_per_stream_type = {
+                'LIVE': cached_data.get('LIVE categories', []),
+                'Movies': cached_data.get('Movies categories', []),
+                'Series': cached_data.get('Series categories', [])
+            }
+            entries_per_stream_type = {
+                'LIVE': cached_data.get('LIVE', []),
+                'Movies': cached_data.get('Movies', []),
+                'Series': cached_data.get('Series', [])
+            }
+
+            #Load favorites
+            fav_data = {}
+            if path.isfile(self.favorites_file):
+                with open(self.favorites_file, 'r') as fav_file:
+                    fav_data = json.load(fav_file)
+
+            #Mark favorites and generate URLs for entries
+            for tab_name in entries_per_stream_type.keys():
+                for idx, entry in enumerate(entries_per_stream_type[tab_name]):
+                    stream_type         = entry.get('stream_type', 'series')
+                    stream_id           = entry.get("stream_id", -1)
+                    series_id           = entry.get("series_id", -1)
+                    container_extension = entry.get("container_extension", "m3u8")
+
+                    if "live" in stream_type:
+                        stream_type = "live"
+                    if "movie" in stream_type:
+                        stream_type = "movie"
+
+                    if stream_id:
+                        #Generate URL from format
+                        if stream_type == 'live':
+                            fmt = self.live_url_format
+                        elif stream_type == 'movie':
+                            fmt = self.movie_url_format
+                        else:
+                            fmt = "{server}/{stream_type}/{username}/{password}/{stream_id}.{container_extension}"
+
+                        if ".{container_extension}" not in fmt:
+                            container_extension = ""
+
+                        entries_per_stream_type[tab_name][idx]["url"] = fmt.format(
+                            server=self.server,
+                            username=self.username,
+                            password=self.password,
+                            stream_type=stream_type,
+                            stream_id=stream_id,
+                            container_extension=container_extension
+                        )
+
+                        if stream_id in fav_data.get('stream_ids', []):
+                            entries_per_stream_type[tab_name][idx]['favorite'] = True
+                        else:
+                            entries_per_stream_type[tab_name][idx]['favorite'] = False
+                    else:
+                        entries_per_stream_type[tab_name][idx]["url"] = None
+
+                    if stream_type == 'series':
+                        entries_per_stream_type[tab_name][idx]["stream_type"] = stream_type
+                        if series_id:
+                            if series_id in fav_data.get('series_ids', []):
+                                entries_per_stream_type[tab_name][idx]['favorite'] = True
+                            else:
+                                entries_per_stream_type[tab_name][idx]['favorite'] = False
+
+            #Process data using the existing method
+            self.process_data(iptv_info, categories_per_stream_type, entries_per_stream_type)
+
+            self.animate_progress(0, 100, "Loaded from cache")
+
+        except Exception as e:
+            print(f"Failed loading from cache: {e}")
+            self.animate_progress(0, 100, "Cache load failed, fetching from server...")
+            self.login()
 
     def toggleKeepOnTop(self, state):
         if state == Qt.Checked:
@@ -1288,10 +1398,23 @@ class IPTVPlayerApp(QMainWindow):
             config.write(config_file)
     
     def toggle_cache_on_startup(self, state):
-        if state == Qt.Checked:
-            print("checked")
-        else:
-            print("unchecked")
+        checked = bool(state)
+
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        config['Cache'] = {'startup_with_cache': str(checked)}
+
+        with open(self.user_data_file, 'w') as config_file:
+            config.write(config_file)
+
+    def reload_data_from_server(self):
+        """Force reload data from server (ignoring cache)."""
+        if not self.server or not self.username or not self.password:
+            self.show_error_msg("Error", "No account configured. Please login first.")
+            return
+
+        self.login()
 
     def open_m3u_plus_dialog(self):
         text, ok = QtWidgets.QInputDialog.getText(self, 'M3u_plus Login', 'Enter m3u_plus URL:')

@@ -176,6 +176,9 @@ class IPTVPlayerApp(QMainWindow):
         self.movie_url_format  = ""
         self.series_url_format = ""
 
+        #TMDB API key
+        self.tmdb_api_key = ""
+
         #Create threadpool
         self.threadpool = QThreadPool()
         self.threadpool.setMaxThreadCount(1)
@@ -962,6 +965,12 @@ class IPTVPlayerApp(QMainWindow):
         self.set_live_status_timeout.setValidator(timeout_validator)
         self.set_live_status_timeout.returnPressed.connect(lambda: self.setTimeout(self.set_live_status_timeout))
 
+        #TMDB API key input
+        self.tmdb_api_key_entry = QLineEdit()
+        self.tmdb_api_key_entry.setPlaceholderText("Enter your TMDB API key (v3 auth)")
+        self.tmdb_api_key_entry.setEchoMode(QLineEdit.Password)
+        self.tmdb_api_key_entry.returnPressed.connect(self.saveTmdbApiKey)
+
         #Add widgets to settings tab layout
         self.settings_layout.addWidget(self.address_book_button,                            0, 0)
         self.settings_layout.addWidget(self.choose_player_button,                           0, 1)
@@ -976,14 +985,16 @@ class IPTVPlayerApp(QMainWindow):
         self.settings_layout.addWidget(self.reload_data_btn,                                5, 0)
 
         #Advanced options
-        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         6, 0)
-        self.settings_layout.addWidget(self.select_user_agent_box,                              6, 1)
-        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    7, 0)
-        self.settings_layout.addWidget(self.set_connection_timeout,                             7, 1)
-        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          8, 0)
-        self.settings_layout.addWidget(self.set_read_timeout,                                   8, 1)
-        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   9, 0)
-        self.settings_layout.addWidget(self.set_live_status_timeout,                            9, 1)
+        self.settings_layout.addWidget(QLabel("TMDB API Key (press Enter to save): "),          6, 0)
+        self.settings_layout.addWidget(self.tmdb_api_key_entry,                                 6, 1)
+        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         7, 0)
+        self.settings_layout.addWidget(self.select_user_agent_box,                              7, 1)
+        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    8, 0)
+        self.settings_layout.addWidget(self.set_connection_timeout,                             8, 1)
+        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          9, 0)
+        self.settings_layout.addWidget(self.set_read_timeout,                                   9, 1)
+        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   10, 0)
+        self.settings_layout.addWidget(self.set_live_status_timeout,                            10, 1)
 
     def userAgentSelected(self, e, combobox):
         #Get selected text
@@ -1231,6 +1242,9 @@ class IPTVPlayerApp(QMainWindow):
         #Load theme setting
         self.loadDefaultTheme()
 
+        #Load TMDB API key
+        self.loadDefaultTmdbApiKey()
+
         #Load default auto update checker
         self.loadDefaultAutoUpdate()
 
@@ -1352,6 +1366,114 @@ class IPTVPlayerApp(QMainWindow):
         """Reset to the default light theme."""
         QApplication.instance().setPalette(QApplication.style().standardPalette())
         QApplication.instance().setStyleSheet("")
+
+    def loadDefaultTmdbApiKey(self):
+        """Load the TMDB API key from userdata."""
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        if 'TMDB' in config:
+            self.tmdb_api_key = config['TMDB'].get('api_key', '')
+            self.tmdb_api_key_entry.setText(self.tmdb_api_key)
+
+    def saveTmdbApiKey(self):
+        """Save the TMDB API key to userdata."""
+        self.tmdb_api_key = self.tmdb_api_key_entry.text().strip()
+
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        config['TMDB'] = {'api_key': self.tmdb_api_key}
+
+        with open(self.user_data_file, 'w') as config_file:
+            config.write(config_file)
+
+        if self.tmdb_api_key:
+            self.animate_progress(0, 100, "TMDB API key saved")
+        else:
+            self.animate_progress(0, 100, "TMDB API key removed")
+
+    def fetchTmdbMovieInfo(self, tmdb_id):
+        """Fetch enhanced movie info from TMDB API and update info box."""
+        if not self.tmdb_api_key or not tmdb_id:
+            return
+
+        try:
+            tmdb_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}"
+            params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
+            headers = {"Accept": "application/json"}
+
+            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT))
+
+            if resp.status_code != 200:
+                return
+
+            data = resp.json()
+
+            #Update info box with TMDB enhanced data where available
+            overview = data.get('overview', '')
+            if overview:
+                self.movies_info_box.description.setText(f"Description: {overview}")
+
+            vote_average = data.get('vote_average', 0)
+            vote_count = data.get('vote_count', 0)
+            if vote_average:
+                self.movies_info_box.rating.setText(f"Rating: {vote_average:.1f}/10 ({vote_count} votes)")
+
+            budget = data.get('budget', 0)
+            revenue = data.get('revenue', 0)
+            tagline = data.get('tagline', '')
+
+            #Add tagline to name if available
+            if tagline:
+                current_name = self.movies_info_box.name.text()
+                self.movies_info_box.name.setText(f"{current_name}\n\"{tagline}\"")
+
+        except Exception as e:
+            print(f"Failed fetching TMDB movie info: {e}")
+
+    def fetchTmdbSeriesInfo(self, tmdb_id):
+        """Fetch enhanced series info from TMDB API and update info box."""
+        if not self.tmdb_api_key or not tmdb_id:
+            return
+
+        try:
+            tmdb_url = f"https://api.themoviedb.org/3/tv/{tmdb_id}"
+            params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
+            headers = {"Accept": "application/json"}
+
+            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT))
+
+            if resp.status_code != 200:
+                return
+
+            data = resp.json()
+
+            #Update info box with TMDB enhanced data where available
+            overview = data.get('overview', '')
+            if overview:
+                self.series_info_box.description.setText(f"Description: {overview}")
+
+            vote_average = data.get('vote_average', 0)
+            vote_count = data.get('vote_count', 0)
+            if vote_average:
+                self.series_info_box.rating.setText(f"Rating: {vote_average:.1f}/10 ({vote_count} votes)")
+
+            num_seasons = data.get('number_of_seasons', 0)
+            num_episodes = data.get('number_of_episodes', 0)
+            if num_seasons:
+                self.series_info_box.num_seasons.setText(f"Seasons: {num_seasons} ({num_episodes} episodes)")
+
+            status = data.get('status', '')
+            tagline = data.get('tagline', '')
+
+            #Add tagline to name if available
+            if tagline:
+                current_name = self.series_info_box.name.text()
+                self.series_info_box.name.setText(f"{current_name}\n\"{tagline}\"")
+
+        except Exception as e:
+            print(f"Failed fetching TMDB series info: {e}")
 
     def loadStartupCredentials(self):
         # Load playlist on startup if enabled
@@ -1814,6 +1936,9 @@ class IPTVPlayerApp(QMainWindow):
 
             #Make TMDB button visible
             self.movies_info_box.tmdb.setEnabled(True)
+
+            #Fetch enhanced info from TMDB API if API key is configured
+            self.fetchTmdbMovieInfo(tmdb_code)
         else:
             self.movies_info_box.tmdb_code = None
 
@@ -1933,6 +2058,9 @@ class IPTVPlayerApp(QMainWindow):
 
                 #Make TMDB button visible
                 self.series_info_box.tmdb.setEnabled(True)
+
+                #Fetch enhanced info from TMDB API if API key is configured
+                self.fetchTmdbSeriesInfo(tmdb_code)
             else:
                 self.series_info_box.tmdb_code = None
 

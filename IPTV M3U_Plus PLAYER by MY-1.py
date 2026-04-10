@@ -1146,7 +1146,7 @@ class IPTVPlayerApp(QMainWindow):
             git_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
             #Request data from url
-            git_resp = requests.get(git_api_url, timeout=Threadpools.CONNECTION_TIMEOUT, proxies=Threadpools.get_proxies())
+            git_resp = Threadpools._make_request(git_api_url, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT))
 
             #Get data and latest version
             data = git_resp.json()
@@ -1448,7 +1448,7 @@ class IPTVPlayerApp(QMainWindow):
             params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
             headers = {"Accept": "application/json"}
 
-            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT), proxies=Threadpools.get_proxies())
+            resp = Threadpools._make_request(tmdb_url, params=params, headers=headers)
 
             if resp.status_code != 200:
                 return
@@ -1487,7 +1487,7 @@ class IPTVPlayerApp(QMainWindow):
             params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
             headers = {"Accept": "application/json"}
 
-            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT), proxies=Threadpools.get_proxies())
+            resp = Threadpools._make_request(tmdb_url, params=params, headers=headers)
 
             if resp.status_code != 200:
                 return

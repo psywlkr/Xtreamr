@@ -46,6 +46,29 @@ def get_proxies():
         return {"http": PROXY_URL, "https": PROXY_URL}
     return None
 
+def _make_request(url, params=None, headers=None, timeout=None, stream=False):
+    """Centralized HTTP GET with true fallback proxy support.
+
+    When a proxy is configured the request is first attempted without proxy.
+    If the direct request fails with a connection / timeout error the request
+    is retried through the configured proxy.  When no proxy is set the request
+    is made directly (single attempt).
+    """
+    if timeout is None:
+        timeout = (CONNECTION_TIMEOUT, READ_TIMEOUT)
+
+    proxies = get_proxies()
+
+    if proxies:
+        #True fallback: try direct first, then proxy on network error
+        try:
+            return requests.get(url, params=params, headers=headers, timeout=timeout, stream=stream)
+        except (requests.ConnectionError, requests.Timeout):
+            print(f"Direct request failed, retrying via proxy {PROXY_URL}")
+            return requests.get(url, params=params, headers=headers, timeout=timeout, proxies=proxies, stream=stream)
+    else:
+        return requests.get(url, params=params, headers=headers, timeout=timeout, stream=stream)
+
 class FetchDataWorkerSignals(QObject):
     finished        = pyqtSignal(dict, dict, dict)
     error           = pyqtSignal(str)
@@ -100,7 +123,7 @@ class FetchDataWorker(QRunnable):
             #Get IPTV info
             self.signals.progress_bar.emit(0, 5, "Fetching IPTV info")
             try:
-                iptv_info_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                iptv_info_resp = _make_request(host_url, params=params, headers=headers)
                 iptv_info_resp.raise_for_status()
 
                 iptv_info_data = iptv_info_resp.json()
@@ -144,7 +167,7 @@ class FetchDataWorker(QRunnable):
                 self.signals.progress_bar.emit(5, 10, "Fetching LIVE Categories")
                 try:
                     params['action'] = 'get_live_categories'
-                    live_category_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                    live_category_resp = _make_request(host_url, params=params, headers=headers)
                     live_category_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                     categories_per_stream_type['LIVE'] = live_category_resp.json()
@@ -173,7 +196,7 @@ class FetchDataWorker(QRunnable):
                     self.signals.progress_bar.emit(10, 20, "Fetching VOD Categories")
                     try:
                         params['action'] = 'get_vod_categories'
-                        movies_category_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                        movies_category_resp = _make_request(host_url, params=params, headers=headers)
                         movies_category_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                         categories_per_stream_type['Movies'] = movies_category_resp.json()
@@ -202,7 +225,7 @@ class FetchDataWorker(QRunnable):
                     self.signals.progress_bar.emit(20, 30, "Fetching Series Categories")
                     try:
                         params['action'] = 'get_series_categories'
-                        series_category_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                        series_category_resp = _make_request(host_url, params=params, headers=headers)
                         series_category_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                         categories_per_stream_type['Series'] = series_category_resp.json()
@@ -231,7 +254,7 @@ class FetchDataWorker(QRunnable):
                 self.signals.progress_bar.emit(30, 40, "Fetching LIVE Streaming data")
                 try:
                     params['action'] = 'get_live_streams'
-                    live_streams_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                    live_streams_resp = _make_request(host_url, params=params, headers=headers)
                     live_streams_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                     entries_per_stream_type['LIVE'] = live_streams_resp.json()
@@ -260,7 +283,7 @@ class FetchDataWorker(QRunnable):
                     self.signals.progress_bar.emit(40, 60, "Fetching VOD Streaming data")
                     try:
                         params['action'] = 'get_vod_streams'
-                        movies_streams_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                        movies_streams_resp = _make_request(host_url, params=params, headers=headers)
                         movies_streams_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                         entries_per_stream_type['Movies'] = movies_streams_resp.json()
@@ -289,7 +312,7 @@ class FetchDataWorker(QRunnable):
                     self.signals.progress_bar.emit(60, 80, "Fetching Series Streaming data")
                     try:
                         params['action'] = 'get_series'
-                        series_streams_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+                        series_streams_resp = _make_request(host_url, params=params, headers=headers)
                         series_streams_resp.raise_for_status()  #Raises HTTP error is status is 4xx or 5xx
 
                         entries_per_stream_type['Series'] = series_streams_resp.json()
@@ -451,7 +474,7 @@ class MovieInfoFetcher(QRunnable):
             }
 
             #Request vod info
-            vod_info_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+            vod_info_resp = _make_request(host_url, params=params, headers=headers)
 
             #Get vod info data
             vod_info_data = vod_info_resp.json()
@@ -508,7 +531,7 @@ class SeriesInfoFetcher(QRunnable):
             }
 
             #Request series info
-            series_info_resp = requests.get(host_url, params=params, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+            series_info_resp = _make_request(host_url, params=params, headers=headers)
 
             #Get series info data
             series_info_data = series_info_resp.json()
@@ -548,7 +571,7 @@ class ImageFetcher(QRunnable):
             }
 
             #Request image
-            image_resp = requests.get(self.img_url, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+            image_resp = _make_request(self.img_url, headers=headers)
 
             #Check if response code is valid, otherwise set replacement image
             resp_status = image_resp.status_code
@@ -642,7 +665,7 @@ class EPGWorker(QRunnable):
             }
 
             #Requesting EPG data
-            response = requests.get(epg_url, headers=headers, timeout=(CONNECTION_TIMEOUT, READ_TIMEOUT), proxies=get_proxies())
+            response = _make_request(epg_url, headers=headers)
             epg_data = response.json()
 
             #Decrypt EPG data with base 64
@@ -703,7 +726,7 @@ class OnlineWorker(QRunnable):
             }
 
             #Requesting stream playlist data
-            response = requests.get(self.url, headers=headers, timeout=(CONNECTION_TIMEOUT, LIVE_STATUS_TIMEOUT), proxies=get_proxies())
+            response = _make_request(self.url, headers=headers, timeout=(CONNECTION_TIMEOUT, LIVE_STATUS_TIMEOUT))
             response_code = response.status_code
             url_data = response.text
 

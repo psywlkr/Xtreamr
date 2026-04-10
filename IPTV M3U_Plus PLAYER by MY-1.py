@@ -12,7 +12,7 @@ from lxml import etree, html
 from datetime import datetime
 from dateutil import parser, tz
 import xml.etree.ElementTree as ET
-from PyQt5.QtGui import QIcon, QFont, QImage, QPixmap, QColor, QDesktopServices, QIntValidator
+from PyQt5.QtGui import QIcon, QFont, QImage, QPixmap, QColor, QDesktopServices, QIntValidator, QPalette
 from PyQt5.QtCore import (
     Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, QObject, pyqtSignal, 
     QRunnable, pyqtSlot, QThreadPool, QModelIndex, QAbstractItemModel, QVariant, QUrl
@@ -929,7 +929,7 @@ class IPTVPlayerApp(QMainWindow):
 
         self.reload_data_btn = QPushButton("Reload data")
         self.reload_data_btn.setIcon(self.style().standardIcon(QtWidgets.QStyle.SP_BrowserReload))
-        self.reload_data_btn.setToolTip("Click this to manually reload the IPTV data from the server.\nThis refreshes the cached data.")
+        self.reload_data_btn.setToolTip("Click this to manually reload the IPTV data from the server.\nThis refreshes the cached data.\nUseful when 'Startup with cached data' is enabled.")
         self.reload_data_btn.clicked.connect(self.reload_data_from_server)
 
         self.dark_theme_checkbox = QCheckBox("Dark theme")
@@ -1037,7 +1037,7 @@ class IPTVPlayerApp(QMainWindow):
         else:
             self.vods_enabled = True
 
-        #Update tabs to match config (Home=0, LIVE=1, Movies=2, Series=3)
+        #Update tabs to match config (Movies=2, Series=3 when Home tab is at index 0)
         self.tab_widget.setTabEnabled(2, self.vods_enabled)
         self.tab_widget.setTabEnabled(3, self.vods_enabled)
 
@@ -1304,7 +1304,6 @@ class IPTVPlayerApp(QMainWindow):
 
     def applyDarkTheme(self):
         """Apply a dark theme using QPalette."""
-        from PyQt5.QtGui import QPalette
         palette = QPalette()
 
         dark_color      = QColor(45, 45, 45)
@@ -1565,6 +1564,8 @@ class IPTVPlayerApp(QMainWindow):
                             fmt = self.live_url_format
                         elif stream_type == 'movie':
                             fmt = self.movie_url_format
+                        elif self.series_url_format:
+                            fmt = self.series_url_format
                         else:
                             fmt = "{server}/{stream_type}/{username}/{password}/{stream_id}.{container_extension}"
 

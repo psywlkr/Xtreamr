@@ -179,6 +179,9 @@ class IPTVPlayerApp(QMainWindow):
         #TMDB API key
         self.tmdb_api_key = ""
 
+        #Fallback proxy URL (e.g. "http://proxy:8080" or "socks5://proxy:1080")
+        self.proxy_url = ""
+
         #Create threadpool
         self.threadpool = QThreadPool()
         self.threadpool.setMaxThreadCount(1)
@@ -971,6 +974,12 @@ class IPTVPlayerApp(QMainWindow):
         self.tmdb_api_key_entry.setEchoMode(QLineEdit.Password)
         self.tmdb_api_key_entry.returnPressed.connect(self.saveTmdbApiKey)
 
+        #Fallback proxy URL input
+        self.proxy_url_entry = QLineEdit()
+        self.proxy_url_entry.setPlaceholderText("e.g. http://proxy:8080 or socks5://proxy:1080")
+        self.proxy_url_entry.setToolTip("Set a fallback proxy for all HTTP requests and stream playback.\nLeave empty to disable. Press Enter to save.\nSupports http, https, socks5 protocols.")
+        self.proxy_url_entry.returnPressed.connect(self.saveProxyUrl)
+
         #Add widgets to settings tab layout
         self.settings_layout.addWidget(self.address_book_button,                            0, 0)
         self.settings_layout.addWidget(self.choose_player_button,                           0, 1)
@@ -987,14 +996,16 @@ class IPTVPlayerApp(QMainWindow):
         #Advanced options
         self.settings_layout.addWidget(QLabel("TMDB API Key (press Enter to save): "),          6, 0)
         self.settings_layout.addWidget(self.tmdb_api_key_entry,                                 6, 1)
-        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         7, 0)
-        self.settings_layout.addWidget(self.select_user_agent_box,                              7, 1)
-        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    8, 0)
-        self.settings_layout.addWidget(self.set_connection_timeout,                             8, 1)
-        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          9, 0)
-        self.settings_layout.addWidget(self.set_read_timeout,                                   9, 1)
-        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   10, 0)
-        self.settings_layout.addWidget(self.set_live_status_timeout,                            10, 1)
+        self.settings_layout.addWidget(QLabel("Fallback Proxy URL (press Enter to save): "),    7, 0)
+        self.settings_layout.addWidget(self.proxy_url_entry,                                    7, 1)
+        self.settings_layout.addWidget(QLabel("Select User-Agent (Advanced option): "),         8, 0)
+        self.settings_layout.addWidget(self.select_user_agent_box,                              8, 1)
+        self.settings_layout.addWidget(QLabel("Set connection timeout (Advanced option): "),    9, 0)
+        self.settings_layout.addWidget(self.set_connection_timeout,                             9, 1)
+        self.settings_layout.addWidget(QLabel("Set read timeout (Advanced option): "),          10, 0)
+        self.settings_layout.addWidget(self.set_read_timeout,                                   10, 1)
+        self.settings_layout.addWidget(QLabel("Set live status timeout (Advanced option): "),   11, 0)
+        self.settings_layout.addWidget(self.set_live_status_timeout,                            11, 1)
 
     def userAgentSelected(self, e, combobox):
         #Get selected text
@@ -1135,7 +1146,7 @@ class IPTVPlayerApp(QMainWindow):
             git_api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
             #Request data from url
-            git_resp = requests.get(git_api_url, timeout=Threadpools.CONNECTION_TIMEOUT)
+            git_resp = requests.get(git_api_url, timeout=Threadpools.CONNECTION_TIMEOUT, proxies=Threadpools.get_proxies())
 
             #Get data and latest version
             data = git_resp.json()
@@ -1244,6 +1255,9 @@ class IPTVPlayerApp(QMainWindow):
 
         #Load TMDB API key
         self.loadDefaultTmdbApiKey()
+
+        #Load fallback proxy URL
+        self.loadDefaultProxyUrl()
 
         #Load default auto update checker
         self.loadDefaultAutoUpdate()
@@ -1392,6 +1406,38 @@ class IPTVPlayerApp(QMainWindow):
         else:
             self.animate_progress(0, 100, "TMDB API key removed")
 
+    def loadDefaultProxyUrl(self):
+        """Load the fallback proxy URL from userdata."""
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        if 'Proxy' in config:
+            self.proxy_url = config['Proxy'].get('url', '')
+            self.proxy_url_entry.setText(self.proxy_url)
+
+        #Apply the proxy setting to the Threadpools module
+        Threadpools.PROXY_URL = self.proxy_url
+
+    def saveProxyUrl(self):
+        """Save the fallback proxy URL to userdata and apply it immediately."""
+        self.proxy_url = self.proxy_url_entry.text().strip()
+
+        config = configparser.ConfigParser()
+        config.read(self.user_data_file)
+
+        config['Proxy'] = {'url': self.proxy_url}
+
+        with open(self.user_data_file, 'w') as config_file:
+            config.write(config_file)
+
+        #Apply the proxy setting to the Threadpools module
+        Threadpools.PROXY_URL = self.proxy_url
+
+        if self.proxy_url:
+            self.animate_progress(0, 100, f"Proxy saved: {self.proxy_url}")
+        else:
+            self.animate_progress(0, 100, "Proxy removed (direct connection)")
+
     def fetchTmdbMovieInfo(self, tmdb_id):
         """Fetch enhanced movie info from TMDB API and update info box."""
         if not self.tmdb_api_key or not tmdb_id:
@@ -1402,7 +1448,7 @@ class IPTVPlayerApp(QMainWindow):
             params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
             headers = {"Accept": "application/json"}
 
-            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT))
+            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT), proxies=Threadpools.get_proxies())
 
             if resp.status_code != 200:
                 return
@@ -1441,7 +1487,7 @@ class IPTVPlayerApp(QMainWindow):
             params = {'api_key': self.tmdb_api_key, 'language': 'en-US'}
             headers = {"Accept": "application/json"}
 
-            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT))
+            resp = requests.get(tmdb_url, params=params, headers=headers, timeout=(Threadpools.CONNECTION_TIMEOUT, Threadpools.READ_TIMEOUT), proxies=Threadpools.get_proxies())
 
             if resp.status_code != 200:
                 return
@@ -2695,14 +2741,25 @@ class IPTVPlayerApp(QMainWindow):
                 print(f"Going to play: {url}")
                 self.animate_progress(0, 100, "Loading player for streaming")
 
+                #Build proxy argument for external player if proxy is configured
+                proxy_arg = ""
+
                 if is_linux:
                     #Ensure the external player command is executable
                     if not os.access(self.external_player_command, os.X_OK):
                         self.animate_progress(0, 100, "Selected player is not executable")
                         return
 
-                    #Default support, run without user agent argument
-                    player_cmd = f"{self.external_player_command} \"{url}\""
+                    #Build proxy argument for Linux players
+                    if self.proxy_url:
+                        player_lower = self.external_player_command.lower()
+                        if "mpv" in player_lower:
+                            proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
+                        elif "vlc" in player_lower:
+                            proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
+
+                    #Build command with optional proxy argument
+                    player_cmd = f"{self.external_player_command} {proxy_arg} \"{url}\"".strip()
 
                     subprocess.Popen(player_cmd, shell=True)
                 
@@ -2715,12 +2772,16 @@ class IPTVPlayerApp(QMainWindow):
                     #Support MPV with the proper command line
                     elif ("mpv.exe" in self.external_player_command) or ("mpv.com" in self.external_player_command):
                         user_agent_argument = f"--user-agent=\"{self.current_user_agent}\""
-                        player_cmd = f"{self.external_player_command} {user_agent_argument} \"{url}\""
+                        if self.proxy_url:
+                            proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
+                        player_cmd = f"{self.external_player_command} {user_agent_argument} {proxy_arg} \"{url}\"".strip()
                 
                     #Support VLC with the proper command line
                     elif "vlc.exe" in self.external_player_command:
                         user_agent_argument = f"--http-user-agent=\"{self.current_user_agent}\""
-                        player_cmd = f"{self.external_player_command} {user_agent_argument} \"{url}\""
+                        if self.proxy_url:
+                            proxy_arg = f"--http-proxy=\"{self.proxy_url}\""
+                        player_cmd = f"{self.external_player_command} {user_agent_argument} {proxy_arg} \"{url}\"".strip()
 
                     #Default support, run without user agent argument (e.g. MPC-HC is without user agent argument)
                     else:
